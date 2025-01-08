@@ -1,0 +1,1 @@
+# Handles individual page scraping

@@ -1,0 +1,24 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+env/
+
+# Data files (if you plan to store results locally)
+data/*.csv
+
+# Logs
+*.log
+
+# Secrets (if you use any API keys or configs)
+.env
+
+# Editor/IDE specific
+.idea/
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
