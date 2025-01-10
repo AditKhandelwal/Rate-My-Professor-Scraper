@@ -1,5 +1,3 @@
-# Handles API fetching
-
 import requests
 import pandas as pd
 
@@ -10,70 +8,80 @@ API_URL = "https://www.ratemyprofessors.com/graphql"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Content-Type": "application/json",
-    "Authorization": "Basic dGVzdDp0ZXN0", 
-    "Origin": "https://www.ratemyprofessors.com",
-    "Referer": "https://www.ratemyprofessors.com/"
+    "Authorization": "Basic dGVzdDp0ZXN0"
 }
 
-# GraphQL Query Payload
-payload = {
-    "query": """
-    query NewSearchTeachersQuery($query: TeacherSearchQuery!) {
-        newSearch {
-            teachers(query: $query) {
-                edges {
-                    node {
-                        firstName
-                        lastName
-                        legacyId
-                        department
+# Function to fetch professors
+def fetch_professors():
+    professors = []
+    has_next_page = True
+    after = None  # Start with no cursor
+
+    while has_next_page:
+        # GraphQL Payload with Pagination Support
+        payload = {
+            "query": """
+            query NewSearchTeachersQuery($query: TeacherSearchQuery!, $after: String) {
+                newSearch {
+                    teachers(query: $query, after: $after) {
+                        edges {
+                            node {
+                                firstName
+                                lastName
+                                legacyId
+                                department
+                            }
+                        }
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
                     }
                 }
             }
+            """,
+            "variables": {
+                "query": {
+                    "schoolID": 4767  # Filter professors by UC Merced's school ID
+                },
+                "after": after
+            }
         }
-    }
-    """,
-    "variables": {
-        "query": {
-            "text": "UC Merced"
-        }
-    }
-}
 
+        print(f"Fetching page with cursor: {after}")
+        response = requests.post(API_URL, headers=HEADERS, json=payload)
 
-# Fetch professors from Rate My Professors
-def fetch_professors():
-    response = requests.post(API_URL, headers=HEADERS, json=payload)
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                print("Response JSON:", data)  # Debug: Print raw response JSON
 
-    # Print response status and content for debugging
-    print("Status Code:", response.status_code)
-    print("Response Text:", response.text)  # Print raw response text
+                # Extract professors from the response
+                teachers = data["data"]["newSearch"]["teachers"]
+                for edge in teachers["edges"]:
+                    node = edge["node"]
+                    professors.append({
+                        "First Name": node["firstName"],
+                        "Last Name": node["lastName"],
+                        "Legacy ID": node["legacyId"],
+                        "Department": node["department"]
+                    })
 
-    if response.status_code == 200:
-        try:
-            data = response.json()  # Attempt to parse JSON
-            edges = data["data"]["newSearch"]["teachers"]["edges"]
+                # Handle pagination
+                page_info = teachers["pageInfo"]
+                has_next_page = page_info["hasNextPage"]
+                after = page_info["endCursor"]  # Update cursor for next request
+            except Exception as e:
+                print(f"❌ Error processing response: {e}")
+                break
+        else:
+            print(f"❌ Request failed with status code: {response.status_code}")
+            print(response.text)
+            break
 
-            professors = []
-            for edge in edges:
-                node = edge["node"]
-                professors.append({
-                    "First Name": node["firstName"],
-                    "Last Name": node["lastName"],
-                    "Legacy ID": node["legacyId"],
-                    "Department": node["department"]
-                })
+    return professors
 
-            return professors
-        except requests.exceptions.JSONDecodeError:
-            print("❌ Failed to parse JSON. Check the raw response above.")
-            return []
-    else:
-        print(f"❌ Request failed with status code: {response.status_code}")
-        return []
-
-
-# Save data to a CSV file
+# Save professors to CSV
 def save_professors_to_csv(professors):
     df = pd.DataFrame(professors)
     df.to_csv("uc_merced_professors.csv", index=False)
@@ -83,6 +91,6 @@ if __name__ == "__main__":
     professors = fetch_professors()
     if professors:
         save_professors_to_csv(professors)
-        print("✅ Professors fetched and saved successfully!")
+        print(f"✅ Fetched {len(professors)} professors!")
     else:
-        print("No professors found.")
+        print("❌ No professors found.")
